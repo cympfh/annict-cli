@@ -25,11 +25,11 @@ makes oAuth with Annict.com
 
 $ annict calendar
 
-lists up all your unwatch
+lists up all your watching programs
 
 $ annict watch <title-query>
 
-marks a episode as watched.
+marks an episode as watched.
 This command works as a CLI.
 1. search works with <title-query> (the search history and this result will be cached)
 2. choose a work
