@@ -14,6 +14,12 @@ SYNOPSIS
 
     annict watch [<title (search query)>]
         mark a episord as watched
+
+    annict GET /v1/me/statuses
+    annict POST /v1/me/programs
+        GET/POST the endpoint.
+        the phrase "access_token=\$TOKEN" will be appended.
+
 EOM
     exit 0
 }
@@ -63,12 +69,6 @@ auth() {
         -F "redirect_uri=$REDIRECT_URI" \
         -F "code=$CODE" \
         "$BASE/oauth/token" > ~/.annict/auth.json
-}
-
-calendar() {
-    TOKEN=$(get_token)
-    curl -s "$BASE/v1/me/programs?per_page=50&filter_unwatched&access_token=$TOKEN" |
-    jq -r '.programs[] | "\(.episode.id)\t\(.work.title)\t\(.episode.number_text)\t\(.episode.title)\t\(.started_at)"'
 }
 
 record() {
@@ -152,6 +152,43 @@ watch() {
     record "$EPISODE_ID" "$EPISODE_TITLE"
 }
 
+request() {
+    METHOD="$1"
+    URI="$BASE/$2"
+    TOKEN=$(get_token)
+
+    case "$URI" in
+        *\?* )
+            URI="$URI&access_token=$TOKEN"
+            ;;
+        * )
+            URI="$URI?access_token=$TOKEN"
+            ;;
+    esac
+
+    curl -s -X "$METHOD" "$URI"
+}
+
+date-localize() {
+    date --date "$1" "+%Y-%m-%dT%H:%M"
+}
+
+calendar() {
+    IFS=$(printf '\t')
+    TOKEN=$(get_token)
+    YESTERDAY=$(date --date yesterday "+%Y/%m/%d")
+    request GET "/v1/me/programs?filter_started_at_gt=$YESTERDAY" |
+    jq -r '.programs[] | "\(.id)\t\(.started_at)\t\(.channel.name)\t\(.work.title)\t\(.episode.number_text)"' |
+    while read ID START CHANNEL TITLE NUMBER; do
+        printf "%s\t%s\t%s\t%s\t%s\n" \
+            "$ID" \
+            "$(date-localize "$START")" \
+            "$CHANNEL" \
+            "$TITLE" \
+            "$NUMBER"
+    done
+}
+
 ## entry
 #
 
@@ -169,6 +206,9 @@ case "$1" in
         ;;
     w | watch )
         watch "$2"
+        ;;
+    GET | POST )
+        request "$@"
         ;;
     * )
         echo "unknown subcommand: $1"
