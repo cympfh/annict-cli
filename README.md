@@ -2,7 +2,7 @@
 
 thanks to https://annict.com/ and its API
 
-![](http://pbs.twimg.com/media/C3lyg4aVcAEafFI.jpg)
+![](readme-resources/tty.gif)
 
 ## Setup
 
