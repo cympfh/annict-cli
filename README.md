@@ -2,6 +2,8 @@
 
 thanks to https://annict.com/ and its API
 
+![](http://pbs.twimg.com/media/C3lyg4aVcAEafFI.jpg)
+
 ## Setup
 
 `./annict` is a portable shell script.
