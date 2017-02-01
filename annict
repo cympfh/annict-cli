@@ -1,0 +1,150 @@
+#!/bin/bash
+
+## usage
+#
+
+usage() {
+    cat << EOM
+SYNOPSIS
+    annict auth
+    annict calendar
+    annict watch [<title>]
+EOM
+    exit 0
+}
+
+## config & init
+#
+
+BASE=https://api.annict.com
+CLIENT_ID=c81a73774111f942acf663d9204debe76cf07a15aca8745d9feff62276291e52
+CLIENT_SECRET=29a6e737db75badbb1a8b1867ef265ab18d2e2e406182c9dbc1981ce851a4669
+[ -d ~/.annict ] || mkdir ~/.annict
+[ -d ~/.annict/cache ] || mkdir ~/.annict/cache
+
+## utils
+#
+
+browser-open() {
+    open -a 'Google Chrome' "$1"
+}
+
+hash() {
+    if which md5 >/dev/null; then
+        echo "$1" | md5
+    else
+        echo "$1" | md5sum | \grep -o '[0-9a-z]*'
+    fi
+}
+
+get_token() {
+    jq -r .access_token ~/.annict/auth.json
+}
+
+auth() {
+    REDIRECT_URI="urn:ietf:wg:oauth:2.0:oob"
+    browser-open "$BASE/oauth/authorize?client_id=$CLIENT_ID&response_type=code&redirect_uri=$REDIRECT_URI&scope=read%20write"
+    echo -n "paste auth code> "
+    read CODE
+
+    curl -F client_id=$CLIENT_ID -F client_secret=$CLIENT_SECRET -F grant_type=authorization_code -F redirect_uri=$REDIRECT_URI -F code=$CODE -X POST $BASE/oauth/token > ~/.annict/auth.json
+}
+
+calendar() {
+    TOKEN=$(get_token)
+    curl -s "$BASE/v1/me/programs?per_page=50&filter_unwatched&access_token=$TOKEN" |
+    jq -r '.programs[] | "\(.episode.id)\t\(.work.title)\t\(.episode.number_text)\t\(.episode.title)\t\(.started_at)"'
+}
+
+record() {
+
+    EPISODE_ID="$1"
+
+    if [ $# -eq 2 ]; then
+        COMMENT="$2"
+    else
+        COMMENT=$(date "+%Y-%m-%dT%H:%M")
+    fi
+
+    TOKEN=$(get_token)
+
+    curl -X POST "$BASE/v1/me/records?episode_id=$EPISODE_ID&comment=$COMMENT&access_token=$TOKEN&share_twitter=true"
+}
+
+# search work_id from title-query
+search_work() {
+
+    TITLE=$1
+    CACHE="$HOME/.annict/cache/work_$(hash $TITLE)"
+
+    if [ ! -f "$CACHE" ]; then
+        TOKEN=$(get_token)
+        curl -s -X GET "$BASE/v1/works?fields=id,title&per_page=50&filter_title=$TITLE&access_token=$TOKEN" |
+        jq -r '.works[] | "\(.id)\t\(.title)"' |
+        sort -n > $CACHE
+    fi
+
+    cat $CACHE
+}
+
+# search episode_id from work_id
+search_episode() {
+
+    ID=$1
+    CACHE="$HOME/.annict/cache/episode_$ID"
+
+    if [ ! -f "$CACHE" ]; then
+        TOKEN=$(get_token)
+        curl -s -X GET "$BASE/v1/episodes?fields=id,title,number_text,sort_number,work&per_page=50&filter_work_id=$ID&access_token=$TOKEN" |
+        jq -r '.episodes[] | "\(.sort_number)\t\(.id)\t\(.number_text)\t\(.title)"' |
+        sort -n -k 1,1 | sed 's/^[0-9]*[ \t]//g' >$CACHE
+    fi
+
+    cat $CACHE
+}
+
+watch() {
+
+    TITLE=$1
+
+    HISTORY=~/.annict/history
+    if [ $# -eq 0 ]; then
+        if [ -f $HISTORY ]; then
+            TITLE=$(cat $HISTORY | peco --prompt "title query>")
+        else
+            touch $HISTORY
+            usage
+        fi
+    else
+        ( echo $TITLE; cat $HISTORY ) | uniq | head -n 100 > /tmp/a
+        mv /tmp/a $HISTORY
+    fi
+
+    WORK_ID=$(search_work "$TITLE" | peco --prompt "work>" | awk '{print $1}')
+    EPISODE_INFO=$(search_episode "$WORK_ID" | peco --prompt "episode>")
+    EPISODE_ID=$(echo "$EPISODE_INFO" | awk '{print $1}')
+    EPISODE_TITLE=$(echo "$EPISODE_INFO" | awk '{print $3}')
+    record "$EPISODE_ID" "$EPISODE_TITLE"
+}
+
+## entry
+#
+
+[ $# -eq 0 ] && usage
+
+case "$1" in
+    -h | --help )
+        usage
+        ;;
+    auth )
+        auth
+        ;;
+    calendar )
+        calendar
+        ;;
+    watch )
+        watch $2
+        ;;
+    * )
+        usage
+esac
