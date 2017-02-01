@@ -164,12 +164,14 @@ case "$1" in
     auth )
         auth
         ;;
-    calendar )
+    cal | calendar )
         calendar
         ;;
-    watch )
+    w | watch )
         watch "$2"
         ;;
     * )
+        echo "unknown subcommand: $1"
+        echo
         usage
 esac
