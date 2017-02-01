@@ -186,7 +186,8 @@ calendar() {
             "$CHANNEL" \
             "$TITLE" \
             "$NUMBER"
-    done
+    done |
+    sort -k 2,2 -V
 }
 
 ## entry
