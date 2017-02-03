@@ -52,7 +52,7 @@ hash() {
     fi
 }
 
-get_token() {
+get-token() {
     jq -r .access_token ~/.annict/auth.json
 }
 
@@ -81,7 +81,7 @@ record() {
         COMMENT=$(date "+%Y-%m-%dT%H:%M")
     fi
 
-    TOKEN=$(get_token)
+    TOKEN=$(get-token)
 
     curl -X POST "$BASE/v1/me/records?episode_id=$EPISODE_ID&comment=$COMMENT&access_token=$TOKEN&share_twitter=true"
 }
@@ -93,7 +93,7 @@ search_work() {
     CACHE="$HOME/.annict/cache/work_$(hash "$TITLE")"
 
     if [ ! -f "$CACHE" ]; then
-        TOKEN=$(get_token)
+        TOKEN=$(get-token)
         curl -s -X GET "$BASE/v1/works?fields=id,title&per_page=50&filter_title=$TITLE&access_token=$TOKEN" |
         jq -r '.works[] | "\(.id)\t\(.title)"' |
         sort -n > "$CACHE"
@@ -109,7 +109,7 @@ search_episode() {
     CACHE="$HOME/.annict/cache/episode_$ID"
 
     if [ ! -f "$CACHE" ]; then
-        TOKEN=$(get_token)
+        TOKEN=$(get-token)
         curl -s -X GET "$BASE/v1/episodes?fields=id,title,number_text,sort_number,work&per_page=50&filter_work_id=$ID&access_token=$TOKEN" |
         jq -r '.episodes[] | "\(.sort_number)\t\(.id)\t\(.number_text)\t\(.title)"' |
         sort -n -k 1,1 | sed 's/^[0-9]*[ \t]//g' > "$CACHE"
@@ -155,7 +155,7 @@ watch() {
 request() {
     METHOD="$1"
     URI="$BASE/$2"
-    TOKEN=$(get_token)
+    TOKEN=$(get-token)
 
     case "$URI" in
         *\?* )
@@ -170,13 +170,32 @@ request() {
 }
 
 date-localize() {
-    date --date "$1" "+%Y-%m-%dT%H:%M"
+    # $1=2017-02-02T16:58:00.000Z
+    case `uname` in
+        Darwin )
+            date -v+9H -f "%Y-%m-%dT%H:%M:%S" -j "${1%.*}" "+%Y-%m-%dT%H:%M"
+            ;;
+        * )
+            date --date "$1" "+%Y-%m-%dT%H:%M"
+            ;;
+    esac
+}
+
+date-yesterday() {
+    case `uname` in
+        Darwin )
+            date -v -1d "+%Y-%m-%d"
+            ;;
+        * )
+            date --date yesterday "+%Y-%m-%d"
+            ;;
+    esac
 }
 
 calendar() {
     IFS=$(printf '\t')
-    TOKEN=$(get_token)
-    YESTERDAY=$(date --date yesterday "+%Y/%m/%d")
+    TOKEN=$(get-token)
+    YESTERDAY=$(date-yesterday)
     request GET "/v1/me/programs?filter_started_at_gt=$YESTERDAY" |
     jq -r '.programs[] | "\(.id)\t\(.started_at)\t\(.channel.name)\t\(.work.title)\t\(.episode.number_text)"' |
     while read ID START CHANNEL TITLE NUMBER; do
@@ -187,7 +206,7 @@ calendar() {
             "$TITLE" \
             "$NUMBER"
     done |
-    sort -k 2,2 -V
+    sort -k 2,2
 }
 
 ## entry
