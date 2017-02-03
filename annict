@@ -169,8 +169,14 @@ request() {
     curl -s -X "$METHOD" "$URI"
 }
 
-date-localize() {
-    date --date "$1" "+%Y-%m-%dT%H:%M"
+utc2jst() {
+    case $(uname) in
+        Darwin )
+            ;;
+        * )
+            date --date "$1+9:00" "+%Y-%m-%dT%H:%M"
+            ;;
+    esac
 }
 
 calendar() {
@@ -182,7 +188,7 @@ calendar() {
     while read ID START CHANNEL TITLE NUMBER; do
         printf "%s\t%s\t%s\t%s\t%s\n" \
             "$ID" \
-            "$(date-localize "$START")" \
+            "$(utc2jst "$START")" \
             "$CHANNEL" \
             "$TITLE" \
             "$NUMBER"
